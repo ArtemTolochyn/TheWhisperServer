@@ -1,6 +1,6 @@
 mod database;
 mod api;
-pub mod models;
+mod models;
 mod services;
 mod utils;
 
