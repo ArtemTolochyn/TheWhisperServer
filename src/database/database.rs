@@ -727,6 +727,7 @@ impl Database
                     SELECT id, chat_id, user_id, content, timestamp
                     FROM messages
                     WHERE chat_id = ? AND id < ?
+                    ORDER BY id DESC
                     LIMIT ?;
                 "#.to_string();
                 sqlx::query(&query_str)
@@ -741,6 +742,7 @@ impl Database
                     SELECT id, chat_id, user_id, content, timestamp
                     FROM messages
                     WHERE chat_id = ?
+                    ORDER BY id DESC
                     LIMIT ?;
                 "#.to_string();
                 sqlx::query(&query_str)

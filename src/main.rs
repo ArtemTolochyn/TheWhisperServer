@@ -4,10 +4,12 @@ mod models;
 mod services;
 mod utils;
 
+use std::collections::HashMap;
 use actix_web::{App, HttpServer, web, middleware};
 use crate::database::Database;
 use std::sync::{Arc, Mutex};
 use crate::api::{create_channel, get_channel_list, get_messages, join_channel, leave_channel, remove_channel, remove_message, send_message};
+use crate::models::UserSessionsData;
 use crate::services::auth_service::auth_middleware;
 
 const DB_URL: &str = "sqlite://sqlite.db";
@@ -16,8 +18,8 @@ const DB_URL: &str = "sqlite://sqlite.db";
 struct AppState
 {
     database: Database,
-    challenges: Arc<Mutex<std::collections::HashMap<String, String>>>,
-    sessions: Arc<Mutex<std::collections::HashMap<String, i64>>>,
+    challenges: Arc<Mutex<HashMap<String, String>>>,
+    sessions: Arc<Mutex<HashMap<String, UserSessionsData>>>
 }
 
 
@@ -29,8 +31,8 @@ async fn main() -> Result<(), String> {
 
     let app_state = AppState {
         database: database.clone(),
-        challenges: Arc::new(Mutex::new(std::collections::HashMap::new())),
-        sessions: Arc::new(Mutex::new(std::collections::HashMap::new()))
+        challenges: Arc::new(Mutex::new(HashMap::new())),
+        sessions: Arc::new(Mutex::new(HashMap::new()))
     };
 
     HttpServer::new(move || {

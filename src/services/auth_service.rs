@@ -11,7 +11,7 @@ use rsa::pkcs8::DecodePublicKey;
 use rsa::traits::PublicKeyParts;
 use uuid::Uuid;
 use crate::database::{Database, User, UserOpResult};
-
+use crate::models::UserSessionsData;
 
 #[derive(Clone)]
 pub struct AuthenticatedUser {
@@ -45,10 +45,11 @@ pub async fn auth_middleware(req: ServiceRequest, next: Next<impl MessageBody>, 
         Err(_) => return Err(actix_web::error::ErrorInternalServerError("Internal server error"))
     };
 
-    let user_id = match sessions.get(token) {
-        Some(id) => id.clone(),
-        None => return Err(actix_web::error::ErrorUnauthorized("Invalid token")),
-    };
+    let user_id = sessions
+        .iter()
+        .find(|(_key, value)| value.check_token(token.to_string()))
+        .map(|(_key, value)| value.id)
+        .ok_or_else(|| actix_web::error::ErrorUnauthorized("Invalid token"))?;
 
     drop(sessions);
 
@@ -136,7 +137,7 @@ pub fn get_challenge(challenges: Arc<Mutex<HashMap<String, String>>>, username: 
     Ok(result)
 }
 
-pub async fn add_session(database: &Database, sessions: Arc<Mutex<HashMap<String, i64>>>, username: &str) -> Result<String, HttpResponse>
+pub async fn add_session(database: &Database, sessions: Arc<Mutex<HashMap<String, UserSessionsData>>>, username: &str) -> Result<String, HttpResponse>
 {
     let token = Uuid::new_v4().to_string();
     let user_id = match database.get_user_id_by_username(username).await {
@@ -148,7 +149,18 @@ pub async fn add_session(database: &Database, sessions: Arc<Mutex<HashMap<String
         Ok(s) => s,
         Err(_) => return Err(HttpResponse::InternalServerError().body("Internal server error"))
     };
-    sessions.insert(token.clone(), user_id);
+
+    match sessions.get(&user_id.to_string()) {
+        Some(session) => {
+            let mut new_user_sessions = session.clone();
+            new_user_sessions.add_token(token.clone());
+            sessions.insert(user_id.to_string(), new_user_sessions);
+        },
+        None => {
+            let new_user_sessions = UserSessionsData::new(user_id, token.clone());
+            sessions.insert(user_id.to_string(), new_user_sessions);
+        }
+    };
 
     Ok(token)
 }
