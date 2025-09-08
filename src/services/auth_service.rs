@@ -10,7 +10,7 @@ use base64::engine::general_purpose::STANDARD as BASE64;
 use rsa::pkcs8::DecodePublicKey;
 use rsa::traits::PublicKeyParts;
 use uuid::Uuid;
-use crate::database::{Database, User, UserOpResult};
+use crate::database::{Database, User, DatabaseGeneralResult_legacy};
 use crate::models::UserSessionsData;
 
 #[derive(Clone)]
@@ -56,13 +56,13 @@ pub async fn auth_middleware(req: ServiceRequest, next: Next<impl MessageBody>, 
     let user_result = app_state.database.get_user_by_id(user_id).await;
 
     match user_result {
-        UserOpResult::Ok(user) => {
+        DatabaseGeneralResult_legacy::Ok(user) => {
             req.extensions_mut().insert(AuthenticatedUser::new(user));
         }
-        UserOpResult::NotFound => {
+        DatabaseGeneralResult_legacy::NotFound => {
             return Err(actix_web::error::ErrorUnauthorized("Invalid token"));
         }
-        UserOpResult::InternalError(e) => {
+        DatabaseGeneralResult_legacy::InternalError(e) => {
             eprintln!("Error retrieving user: {}", e);
             return Err(actix_web::error::ErrorInternalServerError("Internal server error"));
         }
@@ -98,7 +98,7 @@ pub fn validate_public_key(public_key: &str) -> Result<String, HttpResponse>
     Ok(pem_str)
 }
 
-pub async fn register_user(database: &Database, username: &str, public_key: &str) -> UserOpResult<()>
+pub async fn register_user(database: &Database, username: &str, public_key: &str) -> DatabaseGeneralResult_legacy<()>
 {
     database.register_user(username, public_key).await
 }
@@ -141,7 +141,7 @@ pub async fn add_session(database: &Database, sessions: Arc<Mutex<HashMap<String
 {
     let token = Uuid::new_v4().to_string();
     let user_id = match database.get_user_id_by_username(username).await {
-        UserOpResult::Ok(id) => id,
+        DatabaseGeneralResult_legacy::Ok(id) => id,
         _ => return Err(HttpResponse::InternalServerError().body("Failed to get user ID")),
     };
 

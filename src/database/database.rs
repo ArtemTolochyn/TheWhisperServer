@@ -1,9 +1,10 @@
-use sqlx::{Row, Sqlite, SqlitePool};
+use sqlx::{FromRow, Row, Sqlite, SqlitePool};
 use sqlx::migrate::MigrateDatabase;
 use crate::DB_URL;
 use serde::Serialize;
+use crate::database::initialization::{create_channels_table, create_chat_users_table, create_messages_table, create_users_table};
 
-pub enum UserOpResult<T> {
+pub enum DatabaseGeneralResult_legacy<T> {
     Ok(T),
     NotFound,
     AlreadyExists,
@@ -11,7 +12,14 @@ pub enum UserOpResult<T> {
     InternalError(String),
 }
 
-#[derive(Clone)]
+pub enum DatabaseGeneralError {
+    NotFound,
+    AlreadyExists,
+    InvalidInput,
+    InternalError(String),
+}
+
+#[derive(Clone, FromRow)]
 pub struct User {
     pub id: i64,
     pub public_key: String,
@@ -26,7 +34,7 @@ pub struct Chat {
     pub signature: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, FromRow)]
 pub struct ChatInfo {
     pub id: i64,
     pub name: String,
@@ -63,99 +71,20 @@ impl Database
         let database = SqlitePool::connect(DB_URL).await.map_err(|_| "Cannot connect to database")?;
         println!("Database pool created");
 
-        let database = Database { database };
-        database.create_users_table().await?;
-        database.create_channels_table().await?;
-        database.create_chat_users_table().await?;
-        database.create_messages_table().await?;
+        create_users_table(&database).await?;
+        create_channels_table(&database).await?;
+        create_chat_users_table(&database).await?;
+        create_messages_table(&database).await?;
 
-        Ok(database)
+        let database_struct = Database { database };
+
+        Ok(database_struct)
     }
 
-    pub async fn create_users_table(&self) -> Result<(), String> {
-        let query = r#"
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT NOT NULL UNIQUE,
-                public_key TEXT NOT NULL
-            );
-        "#;
-
-        sqlx::query(query)
-            .execute(&self.database)
-            .await
-            .map_err(|_| "Failed to create users table")?;
-
-        println!("Users table ensured");
-        Ok(())
-    }
-
-    pub async fn create_channels_table(&self) -> Result<(), String> {
-        let query = r#"
-            CREATE TABLE IF NOT EXISTS channels (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                last_edited INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
-            );
-        "#;
-
-        sqlx::query(query)
-            .execute(&self.database)
-            .await
-            .map_err(|_| "Failed to create channels table")?;
-
-        println!("Channels table ensured");
-        Ok(())
-    }
-
-    pub async fn create_chat_users_table(&self) -> Result<(), String> {
-        let query = r#"
-            CREATE TABLE IF NOT EXISTS chat_users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                chat_id INTEGER NOT NULL,
-                user_id INTEGER NOT NULL,
-                key TEXT NOT NULL,
-                signature TEXT NOT NULL,
-                FOREIGN KEY (chat_id) REFERENCES channels(id),
-                FOREIGN KEY (user_id) REFERENCES users(id)
-            );
-        "#;
-
-        sqlx::query(query)
-            .execute(&self.database)
-            .await
-            .map_err(|_| "Failed to create chat_users table")?;
-
-        println!("Chat users table ensured");
-        Ok(())
-    }
-
-    pub async fn create_messages_table(&self) -> Result<(), String> {
-        let query = r#"
-            CREATE TABLE IF NOT EXISTS messages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                chat_id INTEGER NOT NULL,
-                user_id INTEGER NOT NULL,
-                content TEXT NOT NULL,
-                timestamp INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-                FOREIGN KEY (chat_id) REFERENCES channels(id),
-                FOREIGN KEY (user_id) REFERENCES users(id)
-            );
-        "#;
-
-        sqlx::query(query)
-            .execute(&self.database)
-            .await
-            .map_err(|_| "Failed to create messages table")?;
-
-        println!("Messages table ensured");
-        Ok(())
-    }
-
-    pub async fn create_chat(&self, name: &str) -> UserOpResult<ChatInfo> {
+    pub async fn create_chat(&self, name: &str) -> DatabaseGeneralResult_legacy<ChatInfo> {
         let trimmed_name = name.trim();
         if trimmed_name.is_empty() {
-            return UserOpResult::InvalidInput;
+            return DatabaseGeneralResult_legacy::InvalidInput;
         }
 
         let query = r#"
@@ -175,21 +104,21 @@ impl Database
                     Ok(v) => v,
                     Err(e) => {
                         eprintln!("Failed to extract id after chat creation: {}", e);
-                        return UserOpResult::InternalError("Failed to process chat creation result (id)".to_string());
+                        return DatabaseGeneralResult_legacy::InternalError("Failed to process chat creation result (id)".to_string());
                     }
                 };
                 let name_from_db: String = match row.try_get("name") {
                     Ok(v) => v,
                     Err(e) => {
                         eprintln!("Failed to extract name after chat creation: {}", e);
-                        return UserOpResult::InternalError("Failed to process chat creation result (name)".to_string());
+                        return DatabaseGeneralResult_legacy::InternalError("Failed to process chat creation result (name)".to_string());
                     }
                 };
                 let last_edited: i64 = match row.try_get("last_edited") {
                     Ok(v) => v,
                     Err(e) => {
                         eprintln!("Failed to extract last_edited after chat creation: {}", e);
-                        return UserOpResult::InternalError("Failed to process chat creation result (last_edited)".to_string());
+                        return DatabaseGeneralResult_legacy::InternalError("Failed to process chat creation result (last_edited)".to_string());
                     }
                 };
 
@@ -198,17 +127,17 @@ impl Database
                     name: name_from_db,
                     last_edited,
                 };
-                UserOpResult::Ok(chat_info)
+                DatabaseGeneralResult_legacy::Ok(chat_info)
             },
             Err(e) => {
                 eprintln!("Failed to create chat: {}", e);
-                UserOpResult::InternalError(format!("Failed to create chat: {}", e))
+                DatabaseGeneralResult_legacy::InternalError(format!("Failed to create chat: {}", e))
             }
         }
     }
 
 
-    pub async fn remove_chat(&self, chat_id: i64, user_id: i64) -> UserOpResult<()> {
+    pub async fn remove_chat(&self, chat_id: i64, user_id: i64) -> DatabaseGeneralResult_legacy<()> {
         let check_user_query = r#"
             SELECT 1 FROM chat_users WHERE chat_id = ? AND user_id = ?;
         "#;
@@ -221,11 +150,11 @@ impl Database
 
         if let Err(e) = user_in_chat {
             eprintln!("Failed to check if user is in chat: {}", e);
-            return UserOpResult::InternalError("Failed to check user in chat".to_string());
+            return DatabaseGeneralResult_legacy::InternalError("Failed to check user in chat".to_string());
         }
 
         if let Ok(None) = user_in_chat {
-            return UserOpResult::NotFound;
+            return DatabaseGeneralResult_legacy::NotFound;
         }
 
         let delete_messages_query = r#"
@@ -239,7 +168,7 @@ impl Database
 
         if let Err(e) = delete_messages_result {
             eprintln!("Failed to delete messages in chat: {}", e);
-            return UserOpResult::InternalError("Failed to delete messages in chat".to_string());
+            return DatabaseGeneralResult_legacy::InternalError("Failed to delete messages in chat".to_string());
         }
 
         let delete_chat_users_query = r#"
@@ -253,7 +182,7 @@ impl Database
 
         if let Err(e) = delete_chat_users_result {
             eprintln!("Failed to delete chat_users entries: {}", e);
-            return UserOpResult::InternalError("Failed to delete chat_users entries".to_string());
+            return DatabaseGeneralResult_legacy::InternalError("Failed to delete chat_users entries".to_string());
         }
 
         let delete_chat_query = r#"
@@ -266,17 +195,17 @@ impl Database
             .await;
 
         match delete_chat_result {
-            Ok(_) => UserOpResult::Ok(()),
+            Ok(_) => DatabaseGeneralResult_legacy::Ok(()),
             Err(e) => {
                 eprintln!("Failed to delete chat: {}", e);
-                UserOpResult::InternalError("Failed to delete chat".to_string())
+                DatabaseGeneralResult_legacy::InternalError("Failed to delete chat".to_string())
             }
         }
     }
 
-    pub async fn add_user_to_chat(&self, chat_id: i64, user_id: i64, key: &str, signature: &str) -> UserOpResult<()> {
+    pub async fn add_user_to_chat(&self, chat_id: i64, user_id: i64, key: &str, signature: &str) -> DatabaseGeneralResult_legacy<()> {
         if key.trim().is_empty() || signature.trim().is_empty() {
-            return UserOpResult::InvalidInput;
+            return DatabaseGeneralResult_legacy::InvalidInput;
         }
 
         let chat_exists_query = "SELECT 1 FROM channels WHERE id = ?";
@@ -287,11 +216,11 @@ impl Database
 
         if let Err(e) = chat_exists {
             eprintln!("Failed to check if chat exists: {}", e);
-            return UserOpResult::InternalError("Failed to check if chat exists".to_string());
+            return DatabaseGeneralResult_legacy::InternalError("Failed to check if chat exists".to_string());
         }
 
         if let Ok(None) = chat_exists {
-            return UserOpResult::NotFound;
+            return DatabaseGeneralResult_legacy::NotFound;
         }
 
         let check_query = r#"
@@ -307,12 +236,12 @@ impl Database
 
         match existing {
             Ok(Some(_)) => {
-                return UserOpResult::AlreadyExists;
+                return DatabaseGeneralResult_legacy::AlreadyExists;
             },
             Ok(None) => {},
             Err(e) => {
                 eprintln!("Failed to check if user is already in chat: {}", e);
-                return UserOpResult::InternalError("Failed to check user in chat".to_string());
+                return DatabaseGeneralResult_legacy::InternalError("Failed to check user in chat".to_string());
             }
         }
 
@@ -331,17 +260,17 @@ impl Database
 
         match result {
             Ok(_) => {
-                UserOpResult::Ok(())
+                DatabaseGeneralResult_legacy::Ok(())
             },
             Err(e) => {
                 eprintln!("Failed to add user {} to chat {}: {}", user_id, chat_id, e);
-                UserOpResult::InternalError("Failed to add user to chat".to_string())
+                DatabaseGeneralResult_legacy::InternalError("Failed to add user to chat".to_string())
             }
         }
     }
 
 
-    pub async fn get_chats_by_user_id(&self, user_id: i64) -> UserOpResult<Vec<Chat>> {
+    pub async fn get_chats_by_user_id(&self, user_id: i64) -> DatabaseGeneralResult_legacy<Vec<Chat>> {
         let query = r#"
             SELECT c.id, c.name, c.last_edited, cu.key, cu.signature
             FROM channels c
@@ -366,17 +295,17 @@ impl Database
                     })
                 }).collect();
 
-                UserOpResult::Ok(chats)
+                DatabaseGeneralResult_legacy::Ok(chats)
 
             },
             Err(e) => {
                 eprintln!("Failed to fetch chats for user {}: {}", user_id, e);
-                UserOpResult::InternalError("Failed to fetch chats".to_string())
+                DatabaseGeneralResult_legacy::InternalError("Failed to fetch chats".to_string())
             }
         }
     }
 
-    pub async fn remove_user_from_chat(&self, chat_id: i64, user_id: i64) -> UserOpResult<()> {
+    pub async fn remove_user_from_chat(&self, chat_id: i64, user_id: i64) -> DatabaseGeneralResult_legacy<()> {
         let check_query = r#"
             SELECT 1 FROM chat_users WHERE chat_id = ? AND user_id = ?;
         "#;
@@ -389,18 +318,18 @@ impl Database
 
         if let Err(e) = is_user {
             eprintln!("Failed to check if user {} is in chat {}: {}", user_id, chat_id, e);
-            return UserOpResult::InternalError("Failed to check user in chat".to_string());
+            return DatabaseGeneralResult_legacy::InternalError("Failed to check user in chat".to_string());
         }
 
         if let Ok(None) = is_user {
-            return UserOpResult::NotFound;
+            return DatabaseGeneralResult_legacy::NotFound;
         };
 
         let mut tx = match self.database.begin().await {
             Ok(tx) => tx,
             Err(e) => {
                 eprintln!("Failed to begin transaction for user removal from chat: {}", e);
-                return UserOpResult::InternalError("Failed to start transaction".to_string());
+                return DatabaseGeneralResult_legacy::InternalError("Failed to start transaction".to_string());
             }
         };
 
@@ -418,7 +347,7 @@ impl Database
             if let Err(e) = rollback_result {
                 eprintln!("Cannot make rollback {e}")
             }
-            return UserOpResult::InternalError("Failed to delete user messages from chat".to_string());
+            return DatabaseGeneralResult_legacy::InternalError("Failed to delete user messages from chat".to_string());
         }
 
         let delete_chat_user_query = r#"
@@ -435,7 +364,7 @@ impl Database
             if let Err(e) = rollback_result {
                 eprintln!("Cannot make rollback {e}")
             }
-            return UserOpResult::InternalError("Failed to remove user from chat".to_string());
+            return DatabaseGeneralResult_legacy::InternalError("Failed to remove user from chat".to_string());
         }
 
         let update_query = r#"
@@ -453,21 +382,21 @@ impl Database
             if let Err(e) = rollback_result {
                 eprintln!("Cannot make rollback {e}")
             }
-            return UserOpResult::InternalError("Failed to update channel timestamp".to_string());
+            return DatabaseGeneralResult_legacy::InternalError("Failed to update channel timestamp".to_string());
         }
 
         match tx.commit().await {
-            Ok(_) => UserOpResult::Ok(()),
+            Ok(_) => DatabaseGeneralResult_legacy::Ok(()),
             Err(e) => {
                 eprintln!("Failed to commit transaction for user removal from chat: {}", e);
-                UserOpResult::InternalError("Failed to commit user removal".to_string())
+                DatabaseGeneralResult_legacy::InternalError("Failed to commit user removal".to_string())
             }
         }
     }
 
-    pub async fn add_message(&self, chat_id: i64, user_id: i64, content: &str) -> UserOpResult<i64> {
+    pub async fn add_message(&self, chat_id: i64, user_id: i64, content: &str) -> DatabaseGeneralResult_legacy<i64> {
         if content.trim().is_empty() {
-            return UserOpResult::InvalidInput;
+            return DatabaseGeneralResult_legacy::InvalidInput;
         }
         let check_user_query = r#"
             SELECT 1 FROM chat_users WHERE chat_id = ? AND user_id = ?;
@@ -482,11 +411,11 @@ impl Database
 
         if let Err(e) = user_in_chat {
             eprintln!("Failed to check if user is in chat: {}", e);
-            return UserOpResult::InternalError("Failed to check user in chat".to_string());
+            return DatabaseGeneralResult_legacy::InternalError("Failed to check user in chat".to_string());
         }
 
         if let Ok(None) = user_in_chat {
-            return UserOpResult::NotFound;
+            return DatabaseGeneralResult_legacy::NotFound;
         }
 
         let message_query = r#"
@@ -506,7 +435,7 @@ impl Database
             Ok(row) => row.get("id"),
             Err(e) => {
                 eprintln!("Failed to insert message: {}", e);
-                return UserOpResult::InternalError("Failed to insert message".to_string());
+                return DatabaseGeneralResult_legacy::InternalError("Failed to insert message".to_string());
             }
         };
 
@@ -522,16 +451,16 @@ impl Database
             .await;
 
         match update_result {
-            Ok(_) => UserOpResult::Ok(message_id),
+            Ok(_) => DatabaseGeneralResult_legacy::Ok(message_id),
             Err(e) => {
                 eprintln!("Failed to update last_edited: {}", e);
-                UserOpResult::InternalError("Failed to update channel timestamp".to_string())
+                DatabaseGeneralResult_legacy::InternalError("Failed to update channel timestamp".to_string())
             }
         }
     }
 
 
-    pub async fn remove_message(&self, message_id: i64, user_id: i64) -> UserOpResult<()> {
+    pub async fn remove_message(&self, message_id: i64, user_id: i64) -> DatabaseGeneralResult_legacy<()> {
         let check_query = r#"
             SELECT chat_id FROM messages WHERE id = ? AND user_id = ?;
         "#;
@@ -544,10 +473,10 @@ impl Database
 
         let chat_id = match check_result {
             Ok(Some(row)) => row.get::<i64, _>("chat_id"),
-            Ok(None) => return UserOpResult::NotFound,
+            Ok(None) => return DatabaseGeneralResult_legacy::NotFound,
             Err(e) => {
                 eprintln!("Failed to check message existence: {}", e);
-                return UserOpResult::InternalError("Failed to check message existence".to_string());
+                return DatabaseGeneralResult_legacy::InternalError("Failed to check message existence".to_string());
             }
         };
 
@@ -574,23 +503,23 @@ impl Database
                     .await;
 
                 match update_result {
-                    Ok(_) => UserOpResult::Ok(()),
+                    Ok(_) => DatabaseGeneralResult_legacy::Ok(()),
                     Err(e) => {
                         eprintln!("Failed to update last_edited: {}", e);
-                        UserOpResult::InternalError("Failed to update channel timestamp".to_string())
+                        DatabaseGeneralResult_legacy::InternalError("Failed to update channel timestamp".to_string())
                     }
                 }
             },
             Err(e) => {
                 eprintln!("Failed to delete message: {}", e);
-                UserOpResult::InternalError("Failed to delete message".to_string())
+                DatabaseGeneralResult_legacy::InternalError("Failed to delete message".to_string())
             }
         }
     }
 
-    pub async fn register_user(&self, username: &str, public_key: &str) -> UserOpResult<()> {
+    pub async fn register_user(&self, username: &str, public_key: &str) -> DatabaseGeneralResult_legacy<()> {
         if username.trim().is_empty() {
-            return UserOpResult::InvalidInput;
+            return DatabaseGeneralResult_legacy::InvalidInput;
         }
 
         let query = r#"
@@ -607,21 +536,21 @@ impl Database
         match result {
             Ok(_) => {
                 println!("User '{}' registered", username);
-                UserOpResult::Ok(())
+                DatabaseGeneralResult_legacy::Ok(())
             },
             Err(e) => {
                 if let Some(db_err) = e.as_database_error() {
                     if db_err.message().contains("UNIQUE constraint failed") {
-                        return UserOpResult::AlreadyExists;
+                        return DatabaseGeneralResult_legacy::AlreadyExists;
                     }
                 }
                 eprintln!("Database error: {}", e);
-                UserOpResult::InternalError("Database error".to_string())
+                DatabaseGeneralResult_legacy::InternalError("Database error".to_string())
             }
         }
     }
 
-    async fn get_user_by_query<T>(&self, query: &str, bind_value: T) -> UserOpResult<User>
+    async fn get_user_by_query<T>(&self, query: &str, bind_value: T) -> DatabaseGeneralResult_legacy<User>
     where
         T: for<'q> sqlx::Encode<'q, sqlx::Sqlite> + sqlx::Type<sqlx::Sqlite> + Send,
     {
@@ -633,7 +562,7 @@ impl Database
             Ok(r) => r,
             Err(e) => {
                 eprintln!("Database query failed: {}", e);
-                return UserOpResult::InternalError("Internal server error".to_string());
+                return DatabaseGeneralResult_legacy::InternalError("Internal server error".to_string());
             }
         };
 
@@ -643,57 +572,57 @@ impl Database
                     Ok(v) => v,
                     Err(e) => {
                         eprintln!("Failed to extract id: {}", e);
-                        return UserOpResult::InternalError("Internal server error".to_string());
+                        return DatabaseGeneralResult_legacy::InternalError("Internal server error".to_string());
                     }
                 };
                 let public_key: String = match row.try_get("public_key") {
                     Ok(v) => v,
                     Err(e) => {
                         eprintln!("Failed to extract public_key: {}", e);
-                        return UserOpResult::InternalError("Internal server error".to_string());
+                        return DatabaseGeneralResult_legacy::InternalError("Internal server error".to_string());
                     }
                 };
-                UserOpResult::Ok(User { id, public_key })
+                DatabaseGeneralResult_legacy::Ok(User { id, public_key })
             }
-            None => UserOpResult::NotFound,
+            None => DatabaseGeneralResult_legacy::NotFound,
         }
     }
 
-    pub async fn get_user_by_username(&self, username: &str) -> UserOpResult<User> {
+    pub async fn get_user_by_username(&self, username: &str) -> DatabaseGeneralResult_legacy<User> {
         self.get_user_by_query(
             "SELECT id, username, public_key FROM users WHERE username = ?;",
             username.to_string(),
         ).await
     }
 
-    pub async fn get_user_by_id(&self, user_id: i64) -> UserOpResult<User> {
+    pub async fn get_user_by_id(&self, user_id: i64) -> DatabaseGeneralResult_legacy<User> {
         self.get_user_by_query(
             "SELECT id, username, public_key FROM users WHERE id = ?;",
             &user_id,
         ).await
     }
 
-    pub async fn get_user_public_key(&self, username: &str) -> UserOpResult<String> {
+    pub async fn get_user_public_key(&self, username: &str) -> DatabaseGeneralResult_legacy<String> {
         match self.get_user_by_username(username).await {
-            UserOpResult::Ok(user) => UserOpResult::Ok(user.public_key),
-            UserOpResult::NotFound => UserOpResult::NotFound,
-            UserOpResult::AlreadyExists => UserOpResult::AlreadyExists,
-            UserOpResult::InvalidInput => UserOpResult::InvalidInput,
-            UserOpResult::InternalError(e) => UserOpResult::InternalError(e)
+            DatabaseGeneralResult_legacy::Ok(user) => DatabaseGeneralResult_legacy::Ok(user.public_key),
+            DatabaseGeneralResult_legacy::NotFound => DatabaseGeneralResult_legacy::NotFound,
+            DatabaseGeneralResult_legacy::AlreadyExists => DatabaseGeneralResult_legacy::AlreadyExists,
+            DatabaseGeneralResult_legacy::InvalidInput => DatabaseGeneralResult_legacy::InvalidInput,
+            DatabaseGeneralResult_legacy::InternalError(e) => DatabaseGeneralResult_legacy::InternalError(e)
         }
     }
 
-    pub async fn get_user_id_by_username(&self, username: &str) -> UserOpResult<i64> {
+    pub async fn get_user_id_by_username(&self, username: &str) -> DatabaseGeneralResult_legacy<i64> {
         match self.get_user_by_username(username).await {
-            UserOpResult::Ok(user) => UserOpResult::Ok(user.id),
-            UserOpResult::NotFound => UserOpResult::NotFound,
-            UserOpResult::AlreadyExists => UserOpResult::AlreadyExists,
-            UserOpResult::InvalidInput => UserOpResult::InvalidInput,
-            UserOpResult::InternalError(e) => UserOpResult::InternalError(e)
+            DatabaseGeneralResult_legacy::Ok(user) => DatabaseGeneralResult_legacy::Ok(user.id),
+            DatabaseGeneralResult_legacy::NotFound => DatabaseGeneralResult_legacy::NotFound,
+            DatabaseGeneralResult_legacy::AlreadyExists => DatabaseGeneralResult_legacy::AlreadyExists,
+            DatabaseGeneralResult_legacy::InvalidInput => DatabaseGeneralResult_legacy::InvalidInput,
+            DatabaseGeneralResult_legacy::InternalError(e) => DatabaseGeneralResult_legacy::InternalError(e)
         }
     }
 
-    pub async fn get_messages(&self, chat_id: i64, user_id: i64, before_message_id: Option<i64>, ) -> UserOpResult<Vec<Message>> {
+    pub async fn get_messages(&self, chat_id: i64, user_id: i64, before_message_id: Option<i64>, ) -> DatabaseGeneralResult_legacy<Vec<Message>> {
         let limit = 50;
 
         let check_user_query = r#"
@@ -707,14 +636,14 @@ impl Database
         {
             Ok(Some(_)) => { },
             Ok(None) => {
-                return UserOpResult::NotFound;
+                return DatabaseGeneralResult_legacy::NotFound;
             }
             Err(e) => {
                 eprintln!(
                     "Failed to check if user {} is in chat {} before getting messages: {}",
                     user_id, chat_id, e
                 );
-                return UserOpResult::InternalError(
+                return DatabaseGeneralResult_legacy::InternalError(
                     "Failed to verify user chat membership".to_string(),
                 );
             }
@@ -767,14 +696,14 @@ impl Database
                     .collect();
                 messages.reverse();
 
-                UserOpResult::Ok(messages)
+                DatabaseGeneralResult_legacy::Ok(messages)
             }
             Err(sqlx::Error::RowNotFound) => {
-                UserOpResult::Ok(Vec::new())
+                DatabaseGeneralResult_legacy::Ok(Vec::new())
             }
             Err(e) => {
                 eprintln!("Failed to fetch messages for chat {}: {}", chat_id, e);
-                UserOpResult::InternalError("Failed to fetch messages".to_string())
+                DatabaseGeneralResult_legacy::InternalError("Failed to fetch messages".to_string())
             }
         }
     }

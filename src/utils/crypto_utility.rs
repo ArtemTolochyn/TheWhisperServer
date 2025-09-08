@@ -5,12 +5,12 @@ use rand::thread_rng;
 use rsa::{Oaep, RsaPublicKey};
 use rsa::pkcs8::DecodePublicKey;
 use sha2::Sha256;
-use crate::database::{Database, UserOpResult};
+use crate::database::{Database, DatabaseGeneralResult_legacy};
 
 pub async fn encode_by_username(database: &Database, username: &str, challenge: &str) -> Result<String, HttpResponse>
 {
     let public_key_str = match database.get_user_public_key(&username).await {
-        UserOpResult::Ok(key) => key,
+        DatabaseGeneralResult_legacy::Ok(key) => key,
         _ => return Err(HttpResponse::NotFound().body("User not found")),
     };
 
