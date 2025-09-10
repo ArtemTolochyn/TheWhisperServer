@@ -1,10 +1,10 @@
 use actix_web::{post, web, HttpResponse, Responder};
 use crate::AppState;
-use crate::models::{CreateChannelRequest, CreateChannelResponse, GetChannelListResponse, JoinChannelRequest, LeaveChannelRequest, RemoveChannelRequest};
+use crate::models::{CreateChannelRequest, CreateChannelResponse, JoinChannelRequest, LeaveChannelRequest, RemoveChannelRequest};
 use crate::services::auth_service::AuthenticatedUser;
 use crate::services::channels_service;
 
-#[post("/create_channel")]
+#[post("/create")]
 pub async fn create_channel(data: web::Data<AppState>, req: web::Json<CreateChannelRequest>, _user: web::ReqData<AuthenticatedUser>,) -> impl Responder {
     let chat_name = req.name.clone();
 
@@ -14,7 +14,7 @@ pub async fn create_channel(data: web::Data<AppState>, req: web::Json<CreateChan
     }
 }
 
-#[post("/join_channel")]
+#[post("/join")]
 pub async fn join_channel(data: web::Data<AppState>, req: web::Json<JoinChannelRequest>, user: web::ReqData<AuthenticatedUser>,) -> impl Responder {
     let chat_id = req.id.clone();
     let user_id = user.user.id.clone();
@@ -29,7 +29,7 @@ pub async fn join_channel(data: web::Data<AppState>, req: web::Json<JoinChannelR
 }
 
 
-#[post("/remove_channel")]
+#[post("/remove")]
 pub async fn remove_channel(data: web::Data<AppState>, req: web::Json<RemoveChannelRequest>, user: web::ReqData<AuthenticatedUser>,) -> impl Responder {
     let chat_id = req.chat_id.clone();
     let user_id = user.user.id.clone();
@@ -40,23 +40,13 @@ pub async fn remove_channel(data: web::Data<AppState>, req: web::Json<RemoveChan
     }
 }
 
-#[post("/leave_channel")]
+#[post("/leave")]
 pub async fn leave_channel(data: web::Data<AppState>, req: web::Json<LeaveChannelRequest>, user: web::ReqData<AuthenticatedUser>,) -> impl Responder {
     let chat_id = req.chat_id.clone();
     let user_id = user.user.id.clone();
 
     match channels_service::leave_channel(&data.database, chat_id, user_id).await {
         Ok(_) => HttpResponse::Ok().finish(),
-        Err(e) => e
-    }
-}
-
-#[post("/get_channel_list")]
-pub async fn get_channel_list(data: web::Data<AppState>, user: web::ReqData<AuthenticatedUser>,) -> impl Responder {
-    let user_id = user.user.id.clone();
-
-    match channels_service::get_channel_list(&data.database, user_id).await {
-        Ok(channels) => HttpResponse::Ok().json(GetChannelListResponse{channels}),
         Err(e) => e
     }
 }

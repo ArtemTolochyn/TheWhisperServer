@@ -8,7 +8,6 @@ use std::collections::HashMap;
 use actix_web::{App, HttpServer, web, middleware};
 use crate::database::Database;
 use std::sync::{Arc, Mutex};
-use crate::api::{create_channel, get_channel_list, get_messages, join_channel, leave_channel, remove_channel, remove_message, send_message};
 use crate::models::UserSessionsData;
 use crate::services::auth_service::auth_middleware;
 
@@ -38,20 +37,35 @@ async fn main() -> Result<(), String> {
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(app_state.clone()))
-            .service(api::register_user)
-            .service(api::login_request)
-            .service(api::login_verify)
+            .service(
+                web::scope("api/auth")
+                    .service(api::auth::register)
+                    .service(
+                        web::scope("login")
+                            .service(api::auth::request)
+                            .service(api::auth::validate)
+                    )
+            )
             .service(
                 web::scope("api")
                     .wrap(middleware::from_fn(auth_middleware))
-                    .service(create_channel)
-                    .service(join_channel)
-                    .service(leave_channel)
-                    .service(remove_channel)
-                    .service(get_channel_list)
-                    .service(send_message)
-                    .service(get_messages)
-                    .service(remove_message)
+                    .service(
+                        web::scope("user")
+                            .service(api::user::channels)
+                    )
+                    .service(
+                        web::scope("channel")
+                            .service(api::channel::create_channel)
+                            .service(api::channel::join_channel)
+                            .service(api::channel::leave_channel)
+                            .service(api::channel::remove_channel)
+                    )
+                    .service(
+                        web::scope("message")
+                            .service(api::message::send_message)
+                            .service(api::message::get_messages)
+                            .service(api::message::remove_message)
+                    )
             )
     })
         .bind(("127.0.0.1", 8080)).map_err(|_| "Cannot bind IP/Port")?

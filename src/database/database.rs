@@ -2,7 +2,7 @@ use sqlx::{FromRow, Row, Sqlite, SqlitePool};
 use sqlx::migrate::MigrateDatabase;
 use crate::DB_URL;
 use serde::Serialize;
-use crate::database::chat::{add_user_to_chat, create_chat, get_chats_by_user_id, is_user_in_chat, remove_chat, remove_user_from_chat};
+use crate::database::channel::{add_user_to_chat, create_chat, get_channels_by_user_id, is_user_in_chat, remove_chat, remove_user_from_chat};
 use crate::database::initialization::{create_channels_table, create_chat_users_table, create_messages_table, create_users_table};
 use crate::database::message::{add_message, get_messages};
 use crate::database::user::{get_user_by_id, get_user_by_username, register_user};
@@ -113,8 +113,8 @@ impl Database
         add_user_to_chat(&self.database, chat_id, user_id, key, signature).await
     }
 
-    pub async fn get_chats_by_user_id(&self, user_id: i64) -> Result<Vec<Chat>, DatabaseGeneralError> {
-        get_chats_by_user_id(&self.database, user_id).await
+    pub async fn get_channels_by_user_id(&self, user_id: i64) -> Result<Vec<Chat>, DatabaseGeneralError> {
+        get_channels_by_user_id(&self.database, user_id).await
     }
 
     pub async fn remove_user_from_chat(&self, chat_id: i64, user_id: i64) -> Result<(), DatabaseGeneralError> {

@@ -1,7 +1,7 @@
 use actix_web::HttpResponse;
 use base64::Engine;
 use base64::engine::general_purpose;
-use rand::thread_rng;
+use rand::{thread_rng};
 use rsa::{Oaep, RsaPublicKey};
 use rsa::pkcs8::DecodePublicKey;
 use sha2::Sha256;

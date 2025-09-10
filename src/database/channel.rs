@@ -140,7 +140,7 @@ pub async fn add_user_to_chat(database: &SqlitePool, chat_id: i64, user_id: i64,
     Ok(())
 }
 
-pub async fn get_chats_by_user_id(database: &SqlitePool, user_id: i64) -> Result<Vec<Chat>, DatabaseGeneralError> {
+pub async fn get_channels_by_user_id(database: &SqlitePool, user_id: i64) -> Result<Vec<Chat>, DatabaseGeneralError> {
     let rows = sqlx::query_as::<Sqlite, Chat>("
             SELECT c.id, c.name, cu.key, cu.signature
             FROM channels c

@@ -1,7 +1,7 @@
 mod database;
 mod user;
 mod initialization;
-mod chat;
+mod channel;
 mod message;
 
 pub use database::*;

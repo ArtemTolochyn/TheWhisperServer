@@ -1,6 +1,6 @@
 use sqlx::{Row, Sqlite, SqlitePool};
 use crate::database::{DatabaseGeneralError, Message};
-use crate::database::chat::is_user_in_chat;
+use crate::database::channel::is_user_in_chat;
 
 pub async fn add_message(database: &SqlitePool, chat_id: i64, user_id: i64, content: &str) -> Result<i64, DatabaseGeneralError> {
     if content.trim().is_empty() {

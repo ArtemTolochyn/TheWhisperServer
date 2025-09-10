@@ -1,5 +1,5 @@
 use actix_web::HttpResponse;
-use crate::database::{Chat, ChatInfo, Database, DatabaseGeneralError, DatabaseGeneralResult_legacy};
+use crate::database::{Chat, ChatInfo, Database, DatabaseGeneralError};
 
 pub async fn create_channel(database: &Database, name: &str) -> Result<ChatInfo, HttpResponse>
 {
@@ -61,7 +61,7 @@ pub async fn remove_channel(database: &Database, chat_id: i64, user_id: i64) -> 
 
 pub async fn get_channel_list(database: &Database, user_id: i64) -> Result<Vec<Chat>, HttpResponse>
 {
-    match database.get_chats_by_user_id(user_id).await {
+    match database.get_channels_by_user_id(user_id).await {
         Ok(id) => Ok(id),
         Err(e) => {
             match e {

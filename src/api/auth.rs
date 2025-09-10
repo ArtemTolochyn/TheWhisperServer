@@ -1,13 +1,13 @@
 use actix_web::{post, web, HttpResponse, Responder};
 use uuid::Uuid;
 use crate::{AppState};
-use crate::database::{DatabaseGeneralError, DatabaseGeneralResult_legacy};
+use crate::database::{DatabaseGeneralError};
 use crate::models::{ChallengeResponse, LoginRequest, LoginVerify, RegisterRequest, TokenResponse};
 use crate::services::auth_service;
 use crate::utils::crypto_utility;
 
 #[post("/register")]
-pub async fn register_user(data: web::Data<AppState>, req: web::Json<RegisterRequest>) -> impl Responder {
+pub async fn register(data: web::Data<AppState>, req: web::Json<RegisterRequest>) -> impl Responder {
     let public_key = match auth_service::validate_public_key(&req.public_key) {
         Ok(key) => key,
         Err(e) => return e,
@@ -25,8 +25,8 @@ pub async fn register_user(data: web::Data<AppState>, req: web::Json<RegisterReq
     }
 }
 
-#[post("/login/request")]
-pub async fn login_request(data: web::Data<AppState>, req: web::Json<LoginRequest>) -> impl Responder {
+#[post("/request")]
+pub async fn request(data: web::Data<AppState>, req: web::Json<LoginRequest>) -> impl Responder {
     let challenge = Uuid::new_v4().to_string();
 
     let challenge_encrypted = match crypto_utility::encode_by_username(&data.database, &req.username, &challenge).await {
@@ -40,8 +40,8 @@ pub async fn login_request(data: web::Data<AppState>, req: web::Json<LoginReques
     }
 }
 
-#[post("/login/verify")]
-pub async fn login_verify(data: web::Data<AppState>, req: web::Json<LoginVerify>) -> impl Responder {
+#[post("/validate")]
+pub async fn validate(data: web::Data<AppState>, req: web::Json<LoginVerify>) -> impl Responder {
     let challenge = match auth_service::get_challenge(data.challenges.clone(), &req.username) {
         Ok(c) => c,
         Err(e) => return e,
