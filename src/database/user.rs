@@ -1,5 +1,5 @@
 use sqlx::{Sqlite, SqlitePool};
-use crate::database::{DatabaseGeneralError, DatabaseGeneralResult_legacy, User};
+use crate::database::{DatabaseGeneralError, User};
 
 pub async fn get_user_by_username(database: &SqlitePool, username: &str) -> Result<User, DatabaseGeneralError> {
     get_user_by_query(
@@ -22,24 +22,20 @@ pub async fn register_user(database: &SqlitePool, username: &str, public_key: &s
         return Err(DatabaseGeneralError::InvalidInput);
     }
 
-    let query = "INSERT INTO users (username, public_key) VALUES (?, ?)";
-
-    let result = sqlx::query(query)
+    sqlx::query("INSERT INTO users (username, public_key) VALUES (?, ?)")
         .bind(username)
         .bind(public_key)
         .execute(database)
-        .await;
-
-    if let Err(error) = result {
-        if let Some(db_err) = error.as_database_error() {
-            if db_err.message().contains("UNIQUE constraint failed") {
-                return Err(DatabaseGeneralError::AlreadyExists);
+        .await
+        .map_err(|e| {
+            if let Some(db_err) = e.as_database_error() {
+                if db_err.message().contains("UNIQUE constraint failed") {
+                    return DatabaseGeneralError::AlreadyExists;
+                }
             }
-        }
-
-        eprintln!("Cannot add user to database: {}", error);
-        return Err(DatabaseGeneralError::InternalError("Cannot add user to database".to_string()))
-    }
+            eprintln!("Cannot add user to database: {}", e);
+            DatabaseGeneralError::InternalError("Cannot add user to database".to_string())
+        })?;
 
     println!("User '{}' registered", username);
     Ok(())
@@ -49,25 +45,19 @@ pub async fn register_user(database: &SqlitePool, username: &str, public_key: &s
 async fn get_user_by_query<T>(database: &SqlitePool, query: &str, bind_value: T) -> Result<User, DatabaseGeneralError>
 where T: for<'q> sqlx::Encode<'q, Sqlite> + sqlx::Type<Sqlite> + Send,
 {
-    let result = sqlx::query_as::<Sqlite, User>(query)
+    let user_option = sqlx::query_as::<Sqlite, User>(query)
         .bind(bind_value)
         .fetch_optional(database)
-        .await;
-
-    let user_option = match result {
-        Ok(row) => row,
-        Err(e) => {
+        .await
+        .map_err(|e| {
             eprintln!("Failed to get user: {}", e);
-            return Err(DatabaseGeneralError::InternalError("Failed to get user".to_string()));
-        }
-    };
+            DatabaseGeneralError::InternalError("Failed to get user".to_string())
+        })?;
 
     let user = match user_option {
         Some(user) => user,
         None => return Err(DatabaseGeneralError::NotFound),
     };
-
-
-
+    
     Ok(user)
 }

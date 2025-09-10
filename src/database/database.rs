@@ -25,11 +25,10 @@ pub struct User {
     pub public_key: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, FromRow)]
 pub struct Chat {
     pub id: i64,
     pub name: String,
-    pub last_edited: i64,
     pub key: String,
     pub signature: String,
 }
@@ -38,7 +37,6 @@ pub struct Chat {
 pub struct ChatInfo {
     pub id: i64,
     pub name: String,
-    pub last_edited: i64,
 }
 
 
@@ -114,18 +112,10 @@ impl Database
                         return DatabaseGeneralResult_legacy::InternalError("Failed to process chat creation result (name)".to_string());
                     }
                 };
-                let last_edited: i64 = match row.try_get("last_edited") {
-                    Ok(v) => v,
-                    Err(e) => {
-                        eprintln!("Failed to extract last_edited after chat creation: {}", e);
-                        return DatabaseGeneralResult_legacy::InternalError("Failed to process chat creation result (last_edited)".to_string());
-                    }
-                };
 
                 let chat_info = ChatInfo {
                     id,
                     name: name_from_db,
-                    last_edited,
                 };
                 DatabaseGeneralResult_legacy::Ok(chat_info)
             },
@@ -289,7 +279,6 @@ impl Database
                     Some(Chat {
                         id: row.try_get("id").ok()?,
                         name: row.try_get("name").ok()?,
-                        last_edited: row.try_get("last_edited").ok()?,
                         key: row.try_get("key").ok()?,
                         signature: row.try_get("signature").ok()?,
                     })
