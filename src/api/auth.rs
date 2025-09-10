@@ -1,7 +1,7 @@
 use actix_web::{post, web, HttpResponse, Responder};
 use uuid::Uuid;
 use crate::{AppState};
-use crate::database::DatabaseGeneralResult_legacy;
+use crate::database::{DatabaseGeneralError, DatabaseGeneralResult_legacy};
 use crate::models::{ChallengeResponse, LoginRequest, LoginVerify, RegisterRequest, TokenResponse};
 use crate::services::auth_service;
 use crate::utils::crypto_utility;
@@ -14,10 +14,14 @@ pub async fn register_user(data: web::Data<AppState>, req: web::Json<RegisterReq
     };
 
     match auth_service::register_user(&data.database, &req.username, &public_key).await {
-        DatabaseGeneralResult_legacy::Ok(()) => HttpResponse::Ok().finish(),
-        DatabaseGeneralResult_legacy::AlreadyExists => HttpResponse::Conflict().body("Username already exists"),
-        DatabaseGeneralResult_legacy::InvalidInput => HttpResponse::BadRequest().body("Invalid input"),
-        _ => HttpResponse::InternalServerError().body("Internal server error"),
+        Ok(_) => HttpResponse::Ok().finish(),
+        Err(e) => {
+            match e {
+                DatabaseGeneralError::AlreadyExists => HttpResponse::Conflict().body("Username already exists"),
+                DatabaseGeneralError::InvalidInput => HttpResponse::BadRequest().body("Invalid input"),
+                _ => HttpResponse::InternalServerError().body("Internal server error"),
+            }
+        }
     }
 }
 
