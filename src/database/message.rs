@@ -1,6 +1,5 @@
-use sqlx::{Row, SqlitePool};
-use sqlx::encode::IsNull::No;
-use crate::database::{DatabaseGeneralError, DatabaseGeneralResult_legacy};
+use sqlx::{Row, Sqlite, SqlitePool};
+use crate::database::{DatabaseGeneralError, Message};
 use crate::database::chat::is_user_in_chat;
 
 pub async fn add_message(database: &SqlitePool, chat_id: i64, user_id: i64, content: &str) -> Result<i64, DatabaseGeneralError> {
@@ -61,4 +60,51 @@ pub async fn remove_message(database: &SqlitePool, message_id: i64, user_id: i64
         })?;
 
     Ok(())
+}
+
+pub async fn get_messages(database: &SqlitePool, chat_id: i64, user_id: i64, before_message_id: Option<i64>) -> Result<Vec<Message>, DatabaseGeneralError> {
+    let limit = 50;
+
+    let is_user_in_chat = is_user_in_chat(database, user_id, chat_id).await
+        .map_err(|e| DatabaseGeneralError::InternalError(e))?;
+
+    if is_user_in_chat == false { return Err(DatabaseGeneralError::NotFound) }
+
+    match before_message_id {
+        Some(before_id) => {
+            sqlx::query_as::<Sqlite, Message>("
+                 SELECT id, chat_id, user_id, content, timestamp
+                FROM messages
+                WHERE chat_id = ? AND id < ?
+                ORDER BY id DESC
+                LIMIT ?;
+            ")
+                .bind(chat_id)
+                .bind(before_id)
+                .bind(limit)
+                .fetch_all(database)
+                .await
+                .map_err(|e| {
+                    eprintln!("Cannot get messages: {}", e);
+                    DatabaseGeneralError::InternalError("Cannot get messages".to_string())
+                })
+        }
+
+        None => {
+            sqlx::query_as::<Sqlite, Message>("
+                 SELECT id, chat_id, user_id, content, timestamp
+                FROM messages
+                ORDER BY id DESC
+                LIMIT ?;
+            ")
+                .bind(chat_id)
+                .bind(limit)
+                .fetch_all(database)
+                .await
+                .map_err(|e| {
+                    eprintln!("Cannot get messages: {}", e);
+                    DatabaseGeneralError::InternalError("Cannot get messages".to_string())
+                })
+        }
+    }
 }

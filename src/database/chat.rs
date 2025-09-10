@@ -1,7 +1,7 @@
 use sqlx::{Sqlite, SqlitePool};
 use crate::database::{Chat, ChatInfo, DatabaseGeneralError};
 
-pub(crate) async fn is_user_in_chat(database: &SqlitePool, user_id: i64, chat_id: i64) -> Result<bool, String> {
+pub async fn is_user_in_chat(database: &SqlitePool, user_id: i64, chat_id: i64) -> Result<bool, String> {
     let row = sqlx::query("SELECT 1 FROM chat_users WHERE chat_id = ? AND user_id = ?;")
         .bind(chat_id)
         .bind(user_id)

@@ -5,16 +5,23 @@ use rand::thread_rng;
 use rsa::{Oaep, RsaPublicKey};
 use rsa::pkcs8::DecodePublicKey;
 use sha2::Sha256;
-use crate::database::{Database, DatabaseGeneralResult_legacy};
+use crate::database::{Database, DatabaseGeneralError};
 
 pub async fn encode_by_username(database: &Database, username: &str, challenge: &str) -> Result<String, HttpResponse>
 {
-    let public_key_str = match database.get_user_public_key(&username).await {
-        DatabaseGeneralResult_legacy::Ok(key) => key,
-        _ => return Err(HttpResponse::NotFound().body("User not found")),
+    let user = match database.get_user_by_username(&username).await {
+        Ok(user) => user,
+        Err(e) => {
+            return match e {
+                DatabaseGeneralError::NotFound => Err(HttpResponse::NotFound().body("User not found")),
+                _ => Err(HttpResponse::InternalServerError().body("Internal server error")),
+            }
+        }
     };
 
-    let public_key = match RsaPublicKey::from_public_key_pem(&public_key_str) {
+    let public_key_string = user.public_key;
+
+    let public_key = match RsaPublicKey::from_public_key_pem(&public_key_string) {
         Ok(pk) => pk,
         Err(e) => {
             eprintln!("Failed to parse public key DER: {}", e);
