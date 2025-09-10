@@ -29,7 +29,7 @@ pub async fn remove_message(data: web::Data<AppState>, req: web::Json<RemoveMess
     }
 }
 
-#[post("/get")]
+#[post("/chat")]
 pub async fn get_messages(data: web::Data<AppState>, req: web::Json<GetMessagesRequest>, user: web::ReqData<AuthenticatedUser>,) -> impl Responder {
     let chat_id = req.chat_id.clone();
     let user_id = user.user.id.clone();
