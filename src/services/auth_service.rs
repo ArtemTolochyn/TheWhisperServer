@@ -10,7 +10,7 @@ use base64::engine::general_purpose::STANDARD as BASE64;
 use rsa::pkcs8::DecodePublicKey;
 use rsa::traits::PublicKeyParts;
 use uuid::Uuid;
-use crate::database::{Database, User, DatabaseGeneralResult_legacy};
+use crate::database::{Database, User, DatabaseGeneralResult_legacy, DatabaseGeneralError};
 use crate::models::UserSessionsData;
 
 #[derive(Clone)]
@@ -53,23 +53,21 @@ pub async fn auth_middleware(req: ServiceRequest, next: Next<impl MessageBody>, 
 
     drop(sessions);
 
-    let user_result = app_state.database.get_user_by_id(user_id).await;
-
-    match user_result {
-        DatabaseGeneralResult_legacy::Ok(user) => {
+    match app_state.database.get_user_by_id(user_id).await {
+        Ok(user) => {
             req.extensions_mut().insert(AuthenticatedUser::new(user));
         }
-        DatabaseGeneralResult_legacy::NotFound => {
-            return Err(actix_web::error::ErrorUnauthorized("Invalid token"));
+        Err(e) => {
+            return match e {
+                DatabaseGeneralError::NotFound => {
+                    Err(actix_web::error::ErrorUnauthorized("Invalid token"))
+                }
+                _ => {
+                    Err(actix_web::error::ErrorInternalServerError("Internal server error"))
+                }
+            }
         }
-        DatabaseGeneralResult_legacy::InternalError(e) => {
-            eprintln!("Error retrieving user: {}", e);
-            return Err(actix_web::error::ErrorInternalServerError("Internal server error"));
-        }
-        _ => {
-            return Err(actix_web::error::ErrorInternalServerError("Internal server error"));
-        }
-    }
+    };
 
     let res = next.call(req).await?;
     Ok(res)
@@ -98,7 +96,7 @@ pub fn validate_public_key(public_key: &str) -> Result<String, HttpResponse>
     Ok(pem_str)
 }
 
-pub async fn register_user(database: &Database, username: &str, public_key: &str) -> DatabaseGeneralResult_legacy<()>
+pub async fn register_user(database: &Database, username: &str, public_key: &str) -> Result<(), DatabaseGeneralError>
 {
     database.register_user(username, public_key).await
 }
@@ -140,10 +138,11 @@ pub fn get_challenge(challenges: Arc<Mutex<HashMap<String, String>>>, username: 
 pub async fn add_session(database: &Database, sessions: Arc<Mutex<HashMap<String, UserSessionsData>>>, username: &str) -> Result<String, HttpResponse>
 {
     let token = Uuid::new_v4().to_string();
-    let user_id = match database.get_user_id_by_username(username).await {
-        DatabaseGeneralResult_legacy::Ok(id) => id,
-        _ => return Err(HttpResponse::InternalServerError().body("Failed to get user ID")),
-    };
+
+    let user = database.get_user_by_username(username).await
+        .map_err(|_| HttpResponse::InternalServerError().body("Failed to get user ID"))?;
+
+    let user_id = user.id;
 
     let mut sessions = match sessions.lock() {
         Ok(s) => s,
