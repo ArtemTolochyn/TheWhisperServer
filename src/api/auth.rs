@@ -2,9 +2,9 @@ use actix_web::{post, web, HttpResponse, Responder};
 use uuid::Uuid;
 use crate::{AppState};
 use crate::database::{DatabaseGeneralError};
-use crate::models::{ChallengeResponse, LoginRequest, LoginVerify, RegisterRequest, TokenResponse};
 use crate::services::auth_service;
 use crate::utils::crypto_utility;
+use crate::models::api::auth::*;
 
 #[post("/register")]
 pub async fn register(data: web::Data<AppState>, req: web::Json<RegisterRequest>) -> impl Responder {
@@ -35,19 +35,19 @@ pub async fn request(data: web::Data<AppState>, req: web::Json<LoginRequest>) ->
     };
 
     match auth_service::add_login_request(data.challenges.clone(), &req.username, &challenge, &challenge_encrypted) {
-        Ok(challenge) => HttpResponse::Ok().json(ChallengeResponse{challenge}),
+        Ok(challenge) => HttpResponse::Ok().json(LoginResponse{challenge}),
         Err(e) => e,
     }
 }
 
 #[post("/validate")]
-pub async fn validate(data: web::Data<AppState>, req: web::Json<LoginVerify>) -> impl Responder {
+pub async fn validate(data: web::Data<AppState>, req: web::Json<ValidateRequest>) -> impl Responder {
     let challenge = match auth_service::get_challenge(data.challenges.clone(), &req.username) {
         Ok(c) => c,
         Err(e) => return e,
     };
 
-    if req.response != challenge {
+    if req.challenge != challenge {
         return HttpResponse::Unauthorized().body("Wrong Private Key")
     }
 
@@ -56,5 +56,5 @@ pub async fn validate(data: web::Data<AppState>, req: web::Json<LoginVerify>) ->
         Err(e) => return e,
     };
 
-    HttpResponse::Ok().json(TokenResponse { token })
+    HttpResponse::Ok().json(ValidateResponse { token })
 }

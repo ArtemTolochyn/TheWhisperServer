@@ -24,6 +24,7 @@ pub struct LoginResponse {
 #[derive(Deserialize)]
 pub struct ValidateRequest {
     pub username: String,
+    pub challenge: String
 }
 
 #[derive(Serialize)]
