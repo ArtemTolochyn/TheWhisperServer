@@ -5,7 +5,7 @@ use crate::services::auth_service::AuthenticatedUser;
 use crate::services::messages_service;
 
 #[post("/send")]
-pub async fn send_message(data: web::Data<AppState>, req: web::Json<SendMessageRequest>, user: web::ReqData<AuthenticatedUser>,) -> impl Responder {
+pub async fn send(data: web::Data<AppState>, req: web::Json<SendMessageRequest>, user: web::ReqData<AuthenticatedUser>,) -> impl Responder {
     let user_id = user.user.id.clone();
     let chat_id = req.chat_id.clone();
 
@@ -19,7 +19,7 @@ pub async fn send_message(data: web::Data<AppState>, req: web::Json<SendMessageR
 }
 
 #[post("/remove")]
-pub async fn remove_message(data: web::Data<AppState>, req: web::Json<RemoveMessageRequest>, user: web::ReqData<AuthenticatedUser>) -> impl Responder {
+pub async fn remove(data: web::Data<AppState>, req: web::Json<RemoveMessageRequest>, user: web::ReqData<AuthenticatedUser>) -> impl Responder {
     let message_id = req.message_id.clone();
     let user_id = user.user.id.clone();
 
@@ -30,7 +30,7 @@ pub async fn remove_message(data: web::Data<AppState>, req: web::Json<RemoveMess
 }
 
 #[post("/chat")]
-pub async fn get_messages(data: web::Data<AppState>, req: web::Json<GetMessagesRequest>, user: web::ReqData<AuthenticatedUser>,) -> impl Responder {
+pub async fn chat(data: web::Data<AppState>, req: web::Json<GetMessagesRequest>, user: web::ReqData<AuthenticatedUser>,) -> impl Responder {
     let chat_id = req.chat_id.clone();
     let user_id = user.user.id.clone();
 

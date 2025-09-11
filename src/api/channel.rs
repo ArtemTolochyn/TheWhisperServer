@@ -5,7 +5,7 @@ use crate::services::auth_service::AuthenticatedUser;
 use crate::services::channels_service;
 
 #[post("/create")]
-pub async fn create_channel(data: web::Data<AppState>, req: web::Json<CreateChannelRequest>, _user: web::ReqData<AuthenticatedUser>,) -> impl Responder {
+pub async fn create(data: web::Data<AppState>, req: web::Json<CreateChannelRequest>, _user: web::ReqData<AuthenticatedUser>,) -> impl Responder {
     let chat_name = req.name.clone();
 
     match channels_service::create_channel(&data.database, &chat_name).await {
@@ -15,7 +15,7 @@ pub async fn create_channel(data: web::Data<AppState>, req: web::Json<CreateChan
 }
 
 #[post("/join")]
-pub async fn join_channel(data: web::Data<AppState>, req: web::Json<JoinChannelRequest>, user: web::ReqData<AuthenticatedUser>,) -> impl Responder {
+pub async fn join(data: web::Data<AppState>, req: web::Json<JoinChannelRequest>, user: web::ReqData<AuthenticatedUser>,) -> impl Responder {
     let chat_id = req.id.clone();
     let user_id = user.user.id.clone();
 
@@ -30,7 +30,7 @@ pub async fn join_channel(data: web::Data<AppState>, req: web::Json<JoinChannelR
 
 
 #[post("/remove")]
-pub async fn remove_channel(data: web::Data<AppState>, req: web::Json<RemoveChannelRequest>, user: web::ReqData<AuthenticatedUser>,) -> impl Responder {
+pub async fn remove(data: web::Data<AppState>, req: web::Json<RemoveChannelRequest>, user: web::ReqData<AuthenticatedUser>,) -> impl Responder {
     let chat_id = req.chat_id.clone();
     let user_id = user.user.id.clone();
 
@@ -41,7 +41,7 @@ pub async fn remove_channel(data: web::Data<AppState>, req: web::Json<RemoveChan
 }
 
 #[post("/leave")]
-pub async fn leave_channel(data: web::Data<AppState>, req: web::Json<LeaveChannelRequest>, user: web::ReqData<AuthenticatedUser>,) -> impl Responder {
+pub async fn leave(data: web::Data<AppState>, req: web::Json<LeaveChannelRequest>, user: web::ReqData<AuthenticatedUser>,) -> impl Responder {
     let chat_id = req.chat_id.clone();
     let user_id = user.user.id.clone();
 
