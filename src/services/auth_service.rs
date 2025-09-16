@@ -10,8 +10,9 @@ use base64::engine::general_purpose::STANDARD as BASE64;
 use rsa::pkcs8::DecodePublicKey;
 use rsa::traits::PublicKeyParts;
 use uuid::Uuid;
-use crate::database::{Database, User, DatabaseGeneralResult_legacy, DatabaseGeneralError};
-use crate::models::UserSessionsData;
+use crate::database::{Database, DatabaseGeneralError};
+use crate::models::api::state::Session;
+use crate::models::database::user::*;
 
 #[derive(Clone)]
 pub struct AuthenticatedUser {
@@ -135,7 +136,7 @@ pub fn get_challenge(challenges: Arc<Mutex<HashMap<String, String>>>, username: 
     Ok(result)
 }
 
-pub async fn add_session(database: &Database, sessions: Arc<Mutex<HashMap<String, UserSessionsData>>>, username: &str) -> Result<String, HttpResponse>
+pub async fn add_session(database: &Database, sessions: Arc<Mutex<HashMap<String, Session>>>, username: &str) -> Result<String, HttpResponse>
 {
     let token = Uuid::new_v4().to_string();
 
@@ -156,7 +157,7 @@ pub async fn add_session(database: &Database, sessions: Arc<Mutex<HashMap<String
             sessions.insert(user_id.to_string(), new_user_sessions);
         },
         None => {
-            let new_user_sessions = UserSessionsData::new(user_id, token.clone());
+            let new_user_sessions = Session::new(user_id, token.clone());
             sessions.insert(user_id.to_string(), new_user_sessions);
         }
     };

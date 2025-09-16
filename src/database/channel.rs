@@ -1,5 +1,6 @@
 use sqlx::{Sqlite, SqlitePool};
-use crate::database::{Chat, ChatInfo, DatabaseGeneralError};
+use crate::database::{DatabaseGeneralError};
+use crate::models::database::channel::Channel;
 
 pub async fn is_user_in_chat(database: &SqlitePool, user_id: i64, chat_id: i64) -> Result<bool, String> {
     let row = sqlx::query("SELECT 1 FROM chat_users WHERE chat_id = ? AND user_id = ?;")
@@ -28,14 +29,14 @@ async fn is_chat_exist(database: &SqlitePool, chat_id: i64) -> Result<bool, Stri
     Ok(row.is_some())
 }
 
-pub async fn create_chat(database: &SqlitePool, name: &str) -> Result<ChatInfo, DatabaseGeneralError> {
+pub async fn create_chat(database: &SqlitePool, name: &str) -> Result<Channel, DatabaseGeneralError> {
 
     let trimmed_name = name.trim();
     if trimmed_name.is_empty() {
         return Err(DatabaseGeneralError::InvalidInput);
     }
 
-    let chat_info = sqlx::query_as::<Sqlite, ChatInfo>("INSERT INTO channels (name) VALUES (?) RETURNING id, name, last_edited;")
+    let chat_info = sqlx::query_as::<Sqlite, Channel>("INSERT INTO channels (name) VALUES (?) RETURNING *;")
         .bind(trimmed_name)
         .fetch_one(database)
         .await
@@ -140,8 +141,8 @@ pub async fn add_user_to_chat(database: &SqlitePool, chat_id: i64, user_id: i64,
     Ok(())
 }
 
-pub async fn get_channels_by_user_id(database: &SqlitePool, user_id: i64) -> Result<Vec<Chat>, DatabaseGeneralError> {
-    let rows = sqlx::query_as::<Sqlite, Chat>("
+pub async fn get_channels_by_user_id(database: &SqlitePool, user_id: i64) -> Result<Vec<Channel>, DatabaseGeneralError> {
+    let rows = sqlx::query_as::<Sqlite, Channel>("
             SELECT c.id, c.name, cu.key, cu.signature
             FROM channels c
             INNER JOIN chat_users cu ON c.id = cu.chat_id

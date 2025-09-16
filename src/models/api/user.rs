@@ -1,9 +1,9 @@
-use serde::Serialize;
-use crate::database::Chat;
+use serde::{Deserialize, Serialize};
+use crate::models::database::channel::Channel;
 
 //api/user/channels
-#[derive(Serialize)]
-pub struct ChannelsRequest
+#[derive(Serialize, Deserialize)]
+pub struct ChannelsResponse
 {
-    pub channels: Vec<Chat>,
+    pub channels: Vec<Channel>,
 }

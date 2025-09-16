@@ -1,11 +1,11 @@
 use actix_web::{post, web, HttpResponse, Responder};
 use crate::AppState;
-use crate::models::{GetMessagesRequest, GetMessagesResponse, RemoveMessageRequest, SendMessageRequest, SendMessageResponse};
 use crate::services::auth_service::AuthenticatedUser;
 use crate::services::messages_service;
+use crate::models::api::message::*;
 
 #[post("/send")]
-pub async fn send(data: web::Data<AppState>, req: web::Json<SendMessageRequest>, user: web::ReqData<AuthenticatedUser>,) -> impl Responder {
+pub async fn send(data: web::Data<AppState>, req: web::Json<SendRequest>, user: web::ReqData<AuthenticatedUser>,) -> impl Responder {
     let user_id = user.user.id.clone();
     let chat_id = req.chat_id.clone();
 
@@ -13,13 +13,13 @@ pub async fn send(data: web::Data<AppState>, req: web::Json<SendMessageRequest>,
 
     match messages_service::send_message(&data.database, user_id, chat_id, &content).await
     {
-        Ok(id) => HttpResponse::Ok().json(SendMessageResponse{message_id: id}),
+        Ok(id) => HttpResponse::Ok().finish(),
         Err(e) => e
     }
 }
 
 #[post("/remove")]
-pub async fn remove(data: web::Data<AppState>, req: web::Json<RemoveMessageRequest>, user: web::ReqData<AuthenticatedUser>) -> impl Responder {
+pub async fn remove(data: web::Data<AppState>, req: web::Json<RemoveRequest>, user: web::ReqData<AuthenticatedUser>) -> impl Responder {
     let message_id = req.message_id.clone();
     let user_id = user.user.id.clone();
 
@@ -30,14 +30,14 @@ pub async fn remove(data: web::Data<AppState>, req: web::Json<RemoveMessageReque
 }
 
 #[post("/chat")]
-pub async fn chat(data: web::Data<AppState>, req: web::Json<GetMessagesRequest>, user: web::ReqData<AuthenticatedUser>,) -> impl Responder {
+pub async fn chat(data: web::Data<AppState>, req: web::Json<ChatRequest>, user: web::ReqData<AuthenticatedUser>,) -> impl Responder {
     let chat_id = req.chat_id.clone();
     let user_id = user.user.id.clone();
 
     let message_id = req.message_id.clone();
 
     match messages_service::get_messages(&data.database, chat_id, user_id, message_id).await {
-        Ok(messages) => HttpResponse::Ok().json(GetMessagesResponse{messages}),
+        Ok(messages) => HttpResponse::Ok().json(ChatResponse{messages}),
         Err(e) => e
     }
 }

@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
-
+use sqlx::FromRow;
 
 //messages
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, FromRow)]
 pub struct Message {
     id: i64,
     chat_id: i64,

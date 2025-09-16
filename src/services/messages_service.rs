@@ -1,5 +1,7 @@
 use actix_web::HttpResponse;
-use crate::database::{Database, Message, DatabaseGeneralError};
+use crate::database::{Database, DatabaseGeneralError};
+use crate::models::database::message::Message;
+
 
 pub async fn send_message(database: &Database, user_id: i64, chat_id: i64, content: &str) -> Result<i64, HttpResponse> {
     match database.add_message(chat_id, user_id, content).await {

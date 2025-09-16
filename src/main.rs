@@ -8,8 +8,8 @@ use std::collections::HashMap;
 use actix_web::{App, HttpServer, web, middleware};
 use crate::database::Database;
 use std::sync::{Arc, Mutex};
-use crate::models::UserSessionsData;
 use crate::services::auth_service::auth_middleware;
+use crate::models::api::state::Session;
 
 const DB_URL: &str = "sqlite://sqlite.db";
 
@@ -18,7 +18,7 @@ struct AppState
 {
     database: Database,
     challenges: Arc<Mutex<HashMap<String, String>>>,
-    sessions: Arc<Mutex<HashMap<String, UserSessionsData>>>
+    sessions: Arc<Mutex<HashMap<String, Session>>>
 }
 
 

@@ -1,5 +1,6 @@
 use sqlx::{Sqlite, SqlitePool};
-use crate::database::{DatabaseGeneralError, User};
+use crate::database::{DatabaseGeneralError};
+use crate::models::database::user::*;
 
 pub async fn get_user_by_username(database: &SqlitePool, username: &str) -> Result<User, DatabaseGeneralError> {
     get_user_by_query(

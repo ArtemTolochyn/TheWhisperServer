@@ -1,56 +1,19 @@
-use sqlx::{FromRow, Row, Sqlite, SqlitePool};
+use sqlx::{Sqlite, SqlitePool};
 use sqlx::migrate::MigrateDatabase;
 use crate::DB_URL;
-use serde::Serialize;
 use crate::database::channel::{add_user_to_chat, create_chat, get_channels_by_user_id, is_user_in_chat, remove_chat, remove_user_from_chat};
 use crate::database::initialization::{create_channels_table, create_chat_users_table, create_messages_table, create_users_table};
 use crate::database::message::{add_message, get_messages};
 use crate::database::user::{get_user_by_id, get_user_by_username, register_user};
-
-pub enum DatabaseGeneralResult_legacy<T> {
-    Ok(T),
-    NotFound,
-    AlreadyExists,
-    InvalidInput,
-    InternalError(String),
-}
+use crate::models::database::user::*;
+use crate::models::database::channel::*;
+use crate::models::database::message::*;
 
 pub enum DatabaseGeneralError {
     NotFound,
     AlreadyExists,
     InvalidInput,
     InternalError(String),
-}
-
-#[derive(Clone, FromRow)]
-pub struct User {
-    pub id: i64,
-    pub public_key: String,
-}
-
-#[derive(Serialize, FromRow)]
-pub struct Chat {
-    pub id: i64,
-    pub name: String,
-    pub key: String,
-    pub signature: String,
-}
-
-#[derive(Serialize, FromRow)]
-pub struct ChatInfo {
-    pub id: i64,
-    pub name: String,
-}
-
-
-
-#[derive(Debug, Serialize, FromRow)]
-pub struct Message {
-    pub id: i64,
-    pub chat_id: i64,
-    pub user_id: i64,
-    pub content: String,
-    pub timestamp: i64,
 }
 
 #[derive(Clone)]
@@ -101,7 +64,7 @@ impl Database
         is_user_in_chat(&self.database, user_id, chat_id).await
     }
 
-    pub async fn create_chat(&self, name: &str) -> Result<ChatInfo, DatabaseGeneralError> {
+    pub async fn create_chat(&self, name: &str) -> Result<Channel, DatabaseGeneralError> {
         create_chat(&self.database, name).await
     }
 
@@ -113,7 +76,7 @@ impl Database
         add_user_to_chat(&self.database, chat_id, user_id, key, signature).await
     }
 
-    pub async fn get_channels_by_user_id(&self, user_id: i64) -> Result<Vec<Chat>, DatabaseGeneralError> {
+    pub async fn get_channels_by_user_id(&self, user_id: i64) -> Result<Vec<Channel>, DatabaseGeneralError> {
         get_channels_by_user_id(&self.database, user_id).await
     }
 

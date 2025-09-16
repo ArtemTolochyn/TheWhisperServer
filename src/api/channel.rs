@@ -1,21 +1,21 @@
 use actix_web::{post, web, HttpResponse, Responder};
 use crate::AppState;
-use crate::models::{CreateChannelRequest, CreateChannelResponse, JoinChannelRequest, LeaveChannelRequest, RemoveChannelRequest};
 use crate::services::auth_service::AuthenticatedUser;
 use crate::services::channels_service;
+use crate::models::api::channel::*;
 
 #[post("/create")]
-pub async fn create(data: web::Data<AppState>, req: web::Json<CreateChannelRequest>, _user: web::ReqData<AuthenticatedUser>,) -> impl Responder {
+pub async fn create(data: web::Data<AppState>, req: web::Json<CreateRequest>, _user: web::ReqData<AuthenticatedUser>,) -> impl Responder {
     let chat_name = req.name.clone();
 
     match channels_service::create_channel(&data.database, &chat_name).await {
-        Ok(chat) => HttpResponse::Ok().json(CreateChannelResponse{ channel: chat}),
+        Ok(_) => HttpResponse::Ok().finish(),
         Err(e) => e
     }
 }
 
 #[post("/join")]
-pub async fn join(data: web::Data<AppState>, req: web::Json<JoinChannelRequest>, user: web::ReqData<AuthenticatedUser>,) -> impl Responder {
+pub async fn join(data: web::Data<AppState>, req: web::Json<JoinRequest>, user: web::ReqData<AuthenticatedUser>,) -> impl Responder {
     let chat_id = req.id.clone();
     let user_id = user.user.id.clone();
 
@@ -30,7 +30,7 @@ pub async fn join(data: web::Data<AppState>, req: web::Json<JoinChannelRequest>,
 
 
 #[post("/remove")]
-pub async fn remove(data: web::Data<AppState>, req: web::Json<RemoveChannelRequest>, user: web::ReqData<AuthenticatedUser>,) -> impl Responder {
+pub async fn remove(data: web::Data<AppState>, req: web::Json<RemoveRequest>, user: web::ReqData<AuthenticatedUser>,) -> impl Responder {
     let chat_id = req.chat_id.clone();
     let user_id = user.user.id.clone();
 
@@ -41,7 +41,7 @@ pub async fn remove(data: web::Data<AppState>, req: web::Json<RemoveChannelReque
 }
 
 #[post("/leave")]
-pub async fn leave(data: web::Data<AppState>, req: web::Json<LeaveChannelRequest>, user: web::ReqData<AuthenticatedUser>,) -> impl Responder {
+pub async fn leave(data: web::Data<AppState>, req: web::Json<LeaveRequest>, user: web::ReqData<AuthenticatedUser>,) -> impl Responder {
     let chat_id = req.chat_id.clone();
     let user_id = user.user.id.clone();
 
